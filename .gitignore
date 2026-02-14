@@ -1,1 +1,7 @@
 .env
+.venv
+backend/data/tokens/
+backend/data/tokens.json
+__pycache__/
+*.pyc
+.vscode/
