@@ -1,11 +1,15 @@
+from typing import Literal
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from spotifeel_api.config import get_settings
 from spotifeel_api.spotify_oauth import build_login_url, exchange_code_for_token, new_state, refresh_access_token
 from spotifeel_api.spotify_client import spotify_get
 from spotifeel_api.token_store import load_token, save_token, delete_token
+from spotifeel_api.routes.user_data import router as user_data_router
 
+TimeRange = Literal["short_term", "medium_term", "long_term"]
 app = FastAPI(title="spotifeel api")
+app.include_router(user_data_router)
 
 STATE_COOKIE = "spotify_auth_state"
 USER_COOKIE = "spotifeel_uid"
@@ -108,3 +112,41 @@ def logout(request: Request):
 @app.get("/")
 def root():
     return {"message": "spotifeel backend running", "try": ["/docs", "/health", "/auth/login", "/me"]}
+
+@app.get("/spotify/top-tracks")
+async def top_tracks(request: Request, limit: int = 20, time_range: TimeRange = "medium_term"):
+    settings = get_settings()
+    uid = _require_user_id(request)
+
+    token = load_token(settings.token_dir, uid)
+    if not token or "access_token" not in token:
+        raise HTTPException(status_code=401, detail="Token missing for this user. Login again.")
+
+    params = {"limit": limit, "time_range": time_range}
+    return await spotify_get(token["access_token"], "/me/top/tracks", params=params)
+
+
+@app.get("/spotify/top-artists")
+async def top_artists(request: Request, limit: int = 20, time_range: TimeRange = "medium_term"):
+    settings = get_settings()
+    uid = _require_user_id(request)
+
+    token = load_token(settings.token_dir, uid)
+    if not token or "access_token" not in token:
+        raise HTTPException(status_code=401, detail="Token missing for this user. Login again.")
+
+    params = {"limit": limit, "time_range": time_range}
+    return await spotify_get(token["access_token"], "/me/top/artists", params=params)
+
+
+@app.get("/spotify/recently-played")
+async def recently_played(request: Request, limit: int = 20):
+    settings = get_settings()
+    uid = _require_user_id(request)
+
+    token = load_token(settings.token_dir, uid)
+    if not token or "access_token" not in token:
+        raise HTTPException(status_code=401, detail="Token missing for this user. Login again.")
+
+    params = {"limit": limit}
+    return await spotify_get(token["access_token"], "/me/player/recently-played", params=params)
